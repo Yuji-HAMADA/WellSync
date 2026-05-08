@@ -18,7 +18,7 @@ android {
     if (localPropertiesFile.exists()) {
         localProperties.load(FileInputStream(localPropertiesFile))
     }
-    val apiKey = localProperties.getProperty("API_KEY") ?: "AIzaSyAyllyJBIBT92yl-pD2yeyC3LSA5zoJk4Q"
+    val apiKey = localProperties.getProperty("API_KEY") ?: ""
 
     defaultConfig {
         applicationId = "com.wellsync"
