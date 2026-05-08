@@ -82,7 +82,7 @@ class HealthRepository @Inject constructor(
 
     private suspend fun useCache(cacheId: String, deltaData: List<HealthDataRecord>): String {
         val deltaJson = Json.encodeToString(deltaData)
-        val prompt = "Here is the latest health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information."
+        val prompt = "Here is the latest health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information. Please always respond in Japanese."
         
         val request = GenerateContentRequest(
             contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
@@ -103,7 +103,7 @@ class HealthRepository @Inject constructor(
         deltaData: List<HealthDataRecord>
     ): String {
         val historicalJson = Json.encodeToString(historicalData)
-        val systemInstruction = "You are a health analysis expert. You have access to the user's historical health data (Weight, Steps, BP). Provide deep insights and trends."
+        val systemInstruction = "You are a health analysis expert. You have access to the user's historical health data (Weight, Steps, BP). Provide deep insights and trends. Always respond in Japanese."
         
         val cacheRequest = CachedContentRequest(
             model = "models/$modelName",
@@ -129,7 +129,7 @@ class HealthRepository @Inject constructor(
 
     private suspend fun generateStandardAnalysis(data: List<HealthDataRecord>): String {
         val dataJson = Json.encodeToString(data)
-        val systemInstruction = "You are a health analysis expert. Provide insights based on this data: $dataJson"
+        val systemInstruction = "You are a health analysis expert. Provide insights based on this data: $dataJson. Always respond in Japanese."
         
         val request = GenerateContentRequest(
             contents = listOf(Content(role = "user", parts = listOf(Part(text = systemInstruction))))
