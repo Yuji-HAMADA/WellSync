@@ -13,7 +13,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLocale
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.wellsync.ui.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import dev.jeziellago.compose.markdowntext.MarkdownText
@@ -60,8 +62,9 @@ fun WellSyncScreen(viewModel: MainViewModel = hiltViewModel()) {
             style = MaterialTheme.typography.bodyMedium
         )
 
+        val locale = LocalLocale.current.platformLocale
         val dateStr = if (uiState.lastSyncTime > 0) {
-            SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(uiState.lastSyncTime))
+            SimpleDateFormat("yyyy/MM/dd HH:mm", locale).format(Date(uiState.lastSyncTime))
         } else {
             "Never"
         }
