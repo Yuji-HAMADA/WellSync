@@ -7,6 +7,7 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("androidx.room")
 }
 
 kotlin {
@@ -39,8 +40,8 @@ android {
         }
     }
     
-    ksp {
-        arg("room.schemaLocation", "$projectDir/schemas")
+    room {
+        schemaDirectory("$projectDir/schemas")
     }
 
     buildTypes {
@@ -94,9 +95,9 @@ dependencies {
 
     // Retrofit & Serialization
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
-    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:3.0.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
 
     // Markdown for Compose
     implementation("com.github.jeziellago:compose-markdown:0.7.2")

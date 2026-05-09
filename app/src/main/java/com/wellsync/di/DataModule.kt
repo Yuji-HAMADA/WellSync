@@ -2,7 +2,7 @@ package com.wellsync.di
 
 import android.content.Context
 import androidx.room.Room
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.wellsync.data.local.SyncStateDao
 import com.wellsync.data.local.WellSyncDatabase
 import com.wellsync.data.remote.GeminiApiService
