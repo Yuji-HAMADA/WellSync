@@ -2,6 +2,7 @@ package com.wellsync.data.health
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BloodPressureRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.WeightRecord
@@ -19,8 +20,20 @@ class HealthConnectManager @Inject constructor(
 ) {
     private val healthConnectClient by lazy { HealthConnectClient.getOrCreate(context) }
 
+    val requiredPermissions = setOf(
+        HealthPermission.getReadPermission(StepsRecord::class),
+        HealthPermission.getReadPermission(WeightRecord::class),
+        HealthPermission.getReadPermission(BloodPressureRecord::class)
+    )
+
     suspend fun isAvailable(): Boolean {
         return HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
+    }
+
+    suspend fun hasAllPermissions(): Boolean {
+        if (!isAvailable()) return false
+        val granted = healthConnectClient.permissionController.getGrantedPermissions()
+        return granted.containsAll(requiredPermissions)
     }
 
     suspend fun readHealthData(startTime: Instant, endTime: Instant): List<HealthDataRecord> {

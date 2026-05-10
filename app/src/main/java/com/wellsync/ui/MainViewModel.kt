@@ -18,7 +18,8 @@ data class UiState(
     val analysis: String? = null,
     val lastSyncTime: Long = 0L,
     val error: String? = null,
-    val isHealthConnectAvailable: Boolean = false
+    val isHealthConnectAvailable: Boolean = false,
+    val hasPermissions: Boolean = false
 )
 
 @HiltViewModel
@@ -31,15 +32,20 @@ class MainViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(UiState())
     val uiState = _uiState.asStateFlow()
 
+    val requiredPermissions = healthConnectManager.requiredPermissions
+
     init {
-        checkHealthConnect()
+        checkHealthConnectAndPermissions()
         loadSyncState()
     }
 
-    private fun checkHealthConnect() {
+    fun checkHealthConnectAndPermissions() {
         viewModelScope.launch {
+            val isAvailable = healthConnectManager.isAvailable()
+            val hasPerms = if (isAvailable) healthConnectManager.hasAllPermissions() else false
             _uiState.value = _uiState.value.copy(
-                isHealthConnectAvailable = healthConnectManager.isAvailable()
+                isHealthConnectAvailable = isAvailable,
+                hasPermissions = hasPerms
             )
         }
     }

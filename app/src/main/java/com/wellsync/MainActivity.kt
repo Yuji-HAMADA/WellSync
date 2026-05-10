@@ -2,12 +2,14 @@ package com.wellsync
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -15,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLocale
+import androidx.health.connect.client.PermissionController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.wellsync.ui.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -49,6 +52,20 @@ fun WellSyncScreen(viewModel: MainViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
 
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract(),
+        onResult = {
+            viewModel.checkHealthConnectAndPermissions()
+        }
+    )
+
+    // Automatically request permissions on first launch if they are missing
+    LaunchedEffect(uiState.isHealthConnectAvailable, uiState.hasPermissions) {
+        if (uiState.isHealthConnectAvailable && !uiState.hasPermissions) {
+            permissionLauncher.launch(viewModel.requiredPermissions)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -79,9 +96,25 @@ fun WellSyncScreen(viewModel: MainViewModel = hiltViewModel()) {
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
+        if (uiState.isHealthConnectAvailable && !uiState.hasPermissions) {
+            Button(
+                onClick = { permissionLauncher.launch(viewModel.requiredPermissions) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Grant Health Connect Permissions")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Please allow permissions to analyze your data.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
         Button(
             onClick = { viewModel.refreshAndAnalyze() },
-            enabled = !uiState.isLoading && uiState.isHealthConnectAvailable,
+            enabled = !uiState.isLoading && uiState.isHealthConnectAvailable && uiState.hasPermissions,
             modifier = Modifier.fillMaxWidth()
         ) {
             if (uiState.isLoading) {
