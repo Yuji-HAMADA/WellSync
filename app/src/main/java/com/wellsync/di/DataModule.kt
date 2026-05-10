@@ -29,7 +29,7 @@ object DataModule {
             context,
             WellSyncDatabase::class.java,
             "wellsync_db"
-        ).fallbackToDestructiveMigration().build()
+        ).fallbackToDestructiveMigration(dropAllTables = true).build()
     }
 
     @Provides
