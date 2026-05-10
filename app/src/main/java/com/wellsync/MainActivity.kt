@@ -151,7 +151,8 @@ fun WellSyncScreen(viewModel: MainViewModel = hiltViewModel()) {
                 if (uiState.analysis != null) {
                     MarkdownText(
                         markdown = uiState.analysis!!,
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge,
+                        isTextSelectable = true
                     )
                 } else if (uiState.error != null) {
                     Text(
