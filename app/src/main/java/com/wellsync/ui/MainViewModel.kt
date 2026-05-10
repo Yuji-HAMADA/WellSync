@@ -47,7 +47,10 @@ class MainViewModel @Inject constructor(
     private fun loadSyncState() {
         viewModelScope.launch {
             syncStateDao.getSyncState()?.let {
-                _uiState.value = _uiState.value.copy(lastSyncTime = it.lastSyncedTimestamp)
+                _uiState.value = _uiState.value.copy(
+                    lastSyncTime = it.lastSyncedTimestamp,
+                    analysis = it.lastAnalysis
+                )
             }
         }
     }
@@ -57,14 +60,15 @@ class MainViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val syncState = syncStateDao.getSyncState()
+                // Default to 365 days ago if no last sync to capture earlier data like January
                 val lastSync = syncState?.lastSyncedTimestamp?.let { Instant.ofEpochMilli(it) } 
-                    ?: Instant.now().minus(30, ChronoUnit.DAYS)
+                    ?: Instant.now().minus(365, ChronoUnit.DAYS)
                 
                 val now = Instant.now()
                 
-                // Fetch historical (e.g., past 3 months for full context)
-                val threeMonthsAgo = now.minus(90, ChronoUnit.DAYS)
-                val historicalData = healthConnectManager.readHealthData(threeMonthsAgo, lastSync)
+                // Fetch historical (e.g., past 365 days for full context)
+                val oneYearAgo = now.minus(365, ChronoUnit.DAYS)
+                val historicalData = healthConnectManager.readHealthData(oneYearAgo, lastSync)
                 
                 // Fetch delta (since last sync)
                 val deltaData = healthConnectManager.readHealthData(lastSync, now)
@@ -77,6 +81,7 @@ class MainViewModel @Inject constructor(
                     lastSyncTime = now.toEpochMilli()
                 )
             } catch (e: Exception) {
+                android.util.Log.e("WellSync", "Error during refreshAndAnalyze", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = e.localizedMessage ?: "Unknown error"

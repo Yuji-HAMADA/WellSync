@@ -1,0 +1,53 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "d9ef7aa971f69140851c11b7966964ac",
+    "entities": [
+      {
+        "tableName": "sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `lastSyncedTimestamp` INTEGER NOT NULL, `cacheId` TEXT, `cacheExpiryTimestamp` INTEGER NOT NULL, `lastAnalysis` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSyncedTimestamp",
+            "columnName": "lastSyncedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cacheId",
+            "columnName": "cacheId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cacheExpiryTimestamp",
+            "columnName": "cacheExpiryTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAnalysis",
+            "columnName": "lastAnalysis",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd9ef7aa971f69140851c11b7966964ac')"
+    ]
+  }
+}

@@ -22,14 +22,19 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.activity.enableEdgeToEdge
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             MaterialTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     WellSyncScreen()

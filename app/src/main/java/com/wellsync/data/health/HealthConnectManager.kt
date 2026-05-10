@@ -27,31 +27,43 @@ class HealthConnectManager @Inject constructor(
         val records = mutableListOf<HealthDataRecord>()
 
         // Read Steps
-        val stepsRequest = ReadRecordsRequest(
-            recordType = StepsRecord::class,
-            timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
-        )
-        healthConnectClient.readRecords(stepsRequest).records.forEach {
-            records.add(HealthDataRecord("steps", it.count.toDouble(), "count", it.startTime.toEpochMilli()))
+        try {
+            val stepsRequest = ReadRecordsRequest(
+                recordType = StepsRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
+            )
+            healthConnectClient.readRecords(stepsRequest).records.forEach {
+                records.add(HealthDataRecord("steps", it.count.toDouble(), "count", it.startTime.toEpochMilli()))
+            }
+        } catch (e: Exception) {
+            // Log or ignore if permission missing or read fails
         }
 
         // Read Weight
-        val weightRequest = ReadRecordsRequest(
-            recordType = WeightRecord::class,
-            timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
-        )
-        healthConnectClient.readRecords(weightRequest).records.forEach {
-            records.add(HealthDataRecord("weight", it.weight.inKilograms, "kg", it.time.toEpochMilli()))
+        try {
+            val weightRequest = ReadRecordsRequest(
+                recordType = WeightRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
+            )
+            healthConnectClient.readRecords(weightRequest).records.forEach {
+                records.add(HealthDataRecord("weight", it.weight.inKilograms, "kg", it.time.toEpochMilli()))
+            }
+        } catch (e: Exception) {
+            // Log or ignore
         }
 
         // Read Blood Pressure
-        val bpRequest = ReadRecordsRequest(
-            recordType = BloodPressureRecord::class,
-            timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
-        )
-        healthConnectClient.readRecords(bpRequest).records.forEach {
-            records.add(HealthDataRecord("systolic_bp", it.systolic.inMillimetersOfMercury, "mmHg", it.time.toEpochMilli()))
-            records.add(HealthDataRecord("diastolic_bp", it.diastolic.inMillimetersOfMercury, "mmHg", it.time.toEpochMilli()))
+        try {
+            val bpRequest = ReadRecordsRequest(
+                recordType = BloodPressureRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
+            )
+            healthConnectClient.readRecords(bpRequest).records.forEach {
+                records.add(HealthDataRecord("systolic_bp", it.systolic.inMillimetersOfMercury, "mmHg", it.time.toEpochMilli()))
+                records.add(HealthDataRecord("diastolic_bp", it.diastolic.inMillimetersOfMercury, "mmHg", it.time.toEpochMilli()))
+            }
+        } catch (e: Exception) {
+            // Log or ignore
         }
 
         return records.sortedBy { it.timestamp }

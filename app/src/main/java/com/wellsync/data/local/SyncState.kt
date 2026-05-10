@@ -8,5 +8,6 @@ data class SyncState(
     @PrimaryKey val id: Int = 0,
     val lastSyncedTimestamp: Long = 0L,
     val cacheId: String? = null,
-    val cacheExpiryTimestamp: Long = 0L
+    val cacheExpiryTimestamp: Long = 0L,
+    val lastAnalysis: String? = null
 )

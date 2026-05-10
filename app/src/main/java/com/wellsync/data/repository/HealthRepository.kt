@@ -9,12 +9,21 @@ import com.wellsync.data.remote.Content
 import com.wellsync.data.remote.GeminiApiService
 import com.wellsync.data.remote.GenerateContentRequest
 import com.wellsync.data.remote.Part
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.OffsetDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
+
+@Serializable
+private data class FormattedHealthRecord(
+    val type: String,
+    val value: Double,
+    val unit: String,
+    val date: String
+)
 
 @Singleton
 class HealthRepository @Inject constructor(
@@ -81,8 +90,13 @@ class HealthRepository @Inject constructor(
     }
 
     private suspend fun useCache(cacheId: String, deltaData: List<HealthDataRecord>): String {
-        val deltaJson = Json.encodeToString(deltaData)
-        val prompt = "Here is the latest health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information. Always respond in Japanese."
+        // Convert timestamps to human-readable strings for the AI
+        val formattedDelta = deltaData.map { 
+            FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
+        }
+        val deltaJson = Json.encodeToString(formattedDelta)
+        val now = OffsetDateTime.now()
+        val prompt = "Current date and time: ${now}. Here is the latest health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information. Always respond in Japanese."
         
         val request = GenerateContentRequest(
             contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
@@ -90,20 +104,30 @@ class HealthRepository @Inject constructor(
         )
         
         val response = geminiApi.generateContent(modelName, apiKey, request)
-        
-        // Update last sync time
+        val result = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No analysis generated."
+
+        Log.d("WellSync", "AI Response (Cached):\n$result")
+
+        // Update last sync time and analysis
         val currentState = syncStateDao.getSyncState() ?: SyncState()
-        syncStateDao.updateSyncState(currentState.copy(lastSyncedTimestamp = Instant.now().toEpochMilli()))
+        syncStateDao.updateSyncState(currentState.copy(
+            lastSyncedTimestamp = Instant.now().toEpochMilli(),
+            lastAnalysis = result
+        ))
         
-        return response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No analysis generated."
+        return result
     }
 
     private suspend fun createNewCache(
         historicalData: List<HealthDataRecord>,
         deltaData: List<HealthDataRecord>
     ): String {
-        val historicalJson = Json.encodeToString(historicalData)
-        val systemInstruction = "You are a health analysis expert. You have access to the user's historical health data (Weight, Steps, BP). Provide deep insights and trends. Always respond in Japanese."
+        val formattedHistorical = historicalData.map { 
+            FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
+        }
+        val historicalJson = Json.encodeToString(formattedHistorical)
+        val now = OffsetDateTime.now()
+        val systemInstruction = "You are a health analysis expert. Current date and time: ${now}. You have access to the user's historical health data (Weight, Steps, BP). Provide deep insights and trends. Always respond in Japanese."
         
         val cacheRequest = CachedContentRequest(
             model = "models/$modelName",
@@ -128,14 +152,28 @@ class HealthRepository @Inject constructor(
     }
 
     private suspend fun generateStandardAnalysis(data: List<HealthDataRecord>): String {
-        val dataJson = Json.encodeToString(data)
-        val systemInstruction = "You are a health analysis expert. Provide insights based on this data: $dataJson. Always respond in Japanese."
+        val formattedData = data.map { 
+            FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
+        }
+        val dataJson = Json.encodeToString(formattedData)
+        val now = OffsetDateTime.now()
+        val systemInstruction = "You are a health analysis expert. Current date and time: ${now}. Provide insights based on this data: $dataJson. Always respond in Japanese."
         
         val request = GenerateContentRequest(
             contents = listOf(Content(role = "user", parts = listOf(Part(text = systemInstruction))))
         )
         
         val response = geminiApi.generateContent(modelName, apiKey, request)
-        return response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No analysis generated (standard)."
+        val result = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No analysis generated (standard)."
+
+        Log.d("WellSync", "AI Response (Standard):\n$result")
+
+        val currentState = syncStateDao.getSyncState() ?: SyncState()
+        syncStateDao.updateSyncState(currentState.copy(
+            lastSyncedTimestamp = Instant.now().toEpochMilli(),
+            lastAnalysis = result
+        ))
+
+        return result
     }
 }
