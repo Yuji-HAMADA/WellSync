@@ -49,15 +49,24 @@ object DataModule {
         val rateLimitInterceptor = okhttp3.Interceptor { chain ->
             val request = chain.request()
             var response = chain.proceed(request)
-            var tryCount = 0
-            val maxRetries = 3
-
-            while (response.code == 429 && tryCount < maxRetries) {
-                tryCount++
-                android.util.Log.w("WellSync", "Rate limit hit (429). Retrying in ${tryCount * 2} seconds...")
-                response.close()
-                Thread.sleep((tryCount * 2000).toLong())
-                response = chain.proceed(request)
+            
+            // Only retry once if Retry-After is explicitly provided and is reasonable (<= 5 seconds).
+            // Otherwise, fail fast to provide immediate feedback to the user.
+            if (response.code == 429) {
+                val retryAfterHeader = response.header("Retry-After")
+                if (retryAfterHeader != null) {
+                    try {
+                        val waitTimeSec = retryAfterHeader.toLong()
+                        if (waitTimeSec <= 5) {
+                            android.util.Log.w("WellSync", "Rate limit hit (429). Retrying in $waitTimeSec seconds based on header...")
+                            response.close()
+                            Thread.sleep(waitTimeSec * 1000)
+                            response = chain.proceed(request)
+                        }
+                    } catch (e: NumberFormatException) {
+                        // Ignore
+                    }
+                }
             }
             response
         }

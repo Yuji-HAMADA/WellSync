@@ -23,7 +23,7 @@ class HealthRepository @Inject constructor(
 ) {
     private val apiKey = com.wellsync.BuildConfig.API_KEY
 
-    private val modelName = "gemini-2.5-flash" // Updated to currently supported model
+    private val modelName = "gemini-2.5-flash-lite" // Updated to currently supported model
 
     suspend fun getAnalysis(
         historicalData: List<HealthDataRecord>,
@@ -73,7 +73,7 @@ class HealthRepository @Inject constructor(
             val errorBody = e.response()?.errorBody()?.string() ?: ""
             if (e.code() == 429) {
                 Log.e("WellSync", "Gemini API Rate Limit Exceeded (429)")
-                throw Exception("Rate limit exceeded. You are making too many requests. Please wait a minute and try again.")
+                throw Exception("Rate limit exceeded. Please wait a minute and try again.")
             }
             Log.e("WellSync", "Gemini API Error (${e.code()}): $errorBody")
             throw Exception("Gemini API Error: $errorBody")
@@ -82,7 +82,7 @@ class HealthRepository @Inject constructor(
 
     private suspend fun useCache(cacheId: String, deltaData: List<HealthDataRecord>): String {
         val deltaJson = Json.encodeToString(deltaData)
-        val prompt = "Here is the latest health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information. Please always respond in Japanese."
+        val prompt = "Here is the latest health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information. Always respond in Japanese."
         
         val request = GenerateContentRequest(
             contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
