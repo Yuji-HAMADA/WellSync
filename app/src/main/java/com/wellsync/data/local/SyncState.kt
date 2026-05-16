@@ -9,5 +9,7 @@ data class SyncState(
     val lastSyncedTimestamp: Long = 0L,
     val cacheId: String? = null,
     val cacheExpiryTimestamp: Long = 0L,
-    val lastAnalysis: String? = null
+    val lastAnalysis: String? = null,
+    val promptType: Int = 0, // 0: Default, 1: Sweet, 2: Spicy, 3: Custom
+    val customPrompt: String? = null
 )

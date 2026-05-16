@@ -34,6 +34,16 @@ class HealthRepository @Inject constructor(
 
     private val modelName = "gemini-2.5-flash-lite" // Updated to currently supported model
 
+    private fun getSystemInstruction(syncState: SyncState, additionalContext: String): String {
+        val baseRole = when (syncState.promptType) {
+            1 -> "You are a kind and gentle health coach. Praise the user's efforts enthusiastically, provide gentle encouragement, and offer mild suggestions for improvement. Keep the tone very warm and supportive."
+            2 -> "You are a strict and demanding fitness trainer. Point out the user's shortcomings bluntly, use tough love to motivate them, and give firm, no-nonsense advice for improvement. Keep the tone intense and challenging."
+            3 -> syncState.customPrompt?.takeIf { it.isNotBlank() } ?: "You are a health analysis expert."
+            else -> "You are a health analysis expert." // Default
+        }
+        return "$baseRole $additionalContext Always respond in Japanese."
+    }
+
     suspend fun getAnalysis(
         historicalData: List<HealthDataRecord>,
         deltaData: List<HealthDataRecord>
@@ -54,13 +64,13 @@ class HealthRepository @Inject constructor(
                     // If the payload is too small, skip the cache creation to save API calls and prevent Rate Limits.
                     if (historicalJson.length > 15000) {
                         try {
-                            createNewCache(historicalData, deltaData)
+                            createNewCache(historicalData, deltaData, syncState)
                         } catch (e: retrofit2.HttpException) {
                             if (e.code() == 400) {
                                 val errorBody = e.response()?.errorBody()?.string() ?: ""
                                 if (errorBody.contains("too small")) {
                                     Log.w("WellSync", "Payload too small for caching, falling back to standard API.")
-                                    generateStandardAnalysis(historicalData + deltaData)
+                                    generateStandardAnalysis(historicalData + deltaData, syncState)
                                 } else {
                                     throw Exception("Gemini API Error: $errorBody")
                                 }
@@ -70,12 +80,12 @@ class HealthRepository @Inject constructor(
                         }
                     } else {
                         Log.i("WellSync", "Historical data too small for cache (${historicalJson.length} chars). Using standard API.")
-                        generateStandardAnalysis(historicalData + deltaData)
+                        generateStandardAnalysis(historicalData + deltaData, syncState)
                     }
                 }
                 // Case 3: Fallback for empty/little data
                 else -> {
-                    generateStandardAnalysis(historicalData + deltaData)
+                    generateStandardAnalysis(historicalData + deltaData, syncState)
                 }
             }
         } catch (e: retrofit2.HttpException) {
@@ -120,14 +130,16 @@ class HealthRepository @Inject constructor(
 
     private suspend fun createNewCache(
         historicalData: List<HealthDataRecord>,
-        deltaData: List<HealthDataRecord>
+        deltaData: List<HealthDataRecord>,
+        syncState: SyncState
     ): String {
         val formattedHistorical = historicalData.map { 
             FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
         }
         val historicalJson = Json.encodeToString(formattedHistorical)
         val now = OffsetDateTime.now()
-        val systemInstruction = "You are a health analysis expert. Current date and time: ${now}. You have access to the user's historical health data (Weight, Steps, BP). Provide deep insights and trends. Always respond in Japanese."
+        val context = "Current date and time: ${now}. You have access to the user's historical health data (Weight, Steps, BP). Provide deep insights and trends."
+        val systemInstruction = getSystemInstruction(syncState, context)
         
         val cacheRequest = CachedContentRequest(
             model = "models/$modelName",
@@ -141,7 +153,8 @@ class HealthRepository @Inject constructor(
         
         // Save cache info
         val expiry = OffsetDateTime.parse(cacheResponse.expireTime).toInstant().toEpochMilli()
-        syncStateDao.updateSyncState(SyncState(
+        val currentState = syncStateDao.getSyncState() ?: SyncState()
+        syncStateDao.updateSyncState(currentState.copy(
             cacheId = cacheResponse.name,
             cacheExpiryTimestamp = expiry,
             lastSyncedTimestamp = Instant.now().toEpochMilli()
@@ -151,13 +164,14 @@ class HealthRepository @Inject constructor(
         return useCache(cacheResponse.name, deltaData)
     }
 
-    private suspend fun generateStandardAnalysis(data: List<HealthDataRecord>): String {
+    private suspend fun generateStandardAnalysis(data: List<HealthDataRecord>, syncState: SyncState): String {
         val formattedData = data.map { 
             FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
         }
         val dataJson = Json.encodeToString(formattedData)
         val now = OffsetDateTime.now()
-        val systemInstruction = "You are a health analysis expert. Current date and time: ${now}. Provide insights based on this data: $dataJson. Always respond in Japanese."
+        val context = "Current date and time: ${now}. Provide insights based on this data: $dataJson."
+        val systemInstruction = getSystemInstruction(syncState, context)
         
         val request = GenerateContentRequest(
             contents = listOf(Content(role = "user", parts = listOf(Part(text = systemInstruction))))

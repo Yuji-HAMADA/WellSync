@@ -3,6 +3,7 @@ package com.wellsync.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.wellsync.data.health.HealthConnectManager
+import com.wellsync.data.local.SyncState
 import com.wellsync.data.local.SyncStateDao
 import com.wellsync.data.repository.HealthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +20,9 @@ data class UiState(
     val lastSyncTime: Long = 0L,
     val error: String? = null,
     val isHealthConnectAvailable: Boolean = false,
-    val hasPermissions: Boolean = false
+    val hasPermissions: Boolean = false,
+    val promptType: Int = 0,
+    val customPrompt: String? = null
 )
 
 @HiltViewModel
@@ -55,7 +58,30 @@ class MainViewModel @Inject constructor(
             syncStateDao.getSyncState()?.let {
                 _uiState.value = _uiState.value.copy(
                     lastSyncTime = it.lastSyncedTimestamp,
-                    analysis = it.lastAnalysis
+                    analysis = it.lastAnalysis,
+                    promptType = it.promptType,
+                    customPrompt = it.customPrompt
+                )
+            }
+        }
+    }
+
+    fun savePromptSettings(type: Int, customPrompt: String?) {
+        viewModelScope.launch {
+            val currentState = syncStateDao.getSyncState() ?: SyncState()
+            val promptChanged = currentState.promptType != type || currentState.customPrompt != customPrompt
+            
+            if (promptChanged) {
+                val newState = currentState.copy(
+                    promptType = type,
+                    customPrompt = customPrompt,
+                    cacheId = null, // Invalidate cache so new prompt is used
+                    cacheExpiryTimestamp = 0L
+                )
+                syncStateDao.updateSyncState(newState)
+                _uiState.value = _uiState.value.copy(
+                    promptType = type,
+                    customPrompt = customPrompt
                 )
             }
         }
@@ -67,7 +93,7 @@ class MainViewModel @Inject constructor(
             try {
                 val syncState = syncStateDao.getSyncState()
                 // Default to 365 days ago if no last sync to capture earlier data like January
-                val lastSync = syncState?.lastSyncedTimestamp?.let { Instant.ofEpochMilli(it) } 
+                val lastSync = syncState?.lastSyncedTimestamp?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it) } 
                     ?: Instant.now().minus(365, ChronoUnit.DAYS)
                 
                 val now = Instant.now()
