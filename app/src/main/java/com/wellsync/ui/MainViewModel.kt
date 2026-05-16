@@ -92,15 +92,15 @@ class MainViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val syncState = syncStateDao.getSyncState()
-                // Default to 365 days ago if no last sync to capture earlier data like January
+                // Default to 14 days ago to capture recent context
                 val lastSync = syncState?.lastSyncedTimestamp?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it) } 
-                    ?: Instant.now().minus(365, ChronoUnit.DAYS)
+                    ?: Instant.now().minus(14, ChronoUnit.DAYS)
                 
                 val now = Instant.now()
                 
-                // Fetch historical (e.g., past 365 days for full context)
-                val oneYearAgo = now.minus(365, ChronoUnit.DAYS)
-                val historicalData = healthConnectManager.readHealthData(oneYearAgo, lastSync)
+                // Fetch historical (e.g., past 14 days for context)
+                val twoWeeksAgo = now.minus(14, ChronoUnit.DAYS)
+                val historicalData = healthConnectManager.readHealthData(twoWeeksAgo, lastSync)
                 
                 // Fetch delta (since last sync)
                 val deltaData = healthConnectManager.readHealthData(lastSync, now)

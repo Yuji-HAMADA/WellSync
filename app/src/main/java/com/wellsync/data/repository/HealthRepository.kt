@@ -14,6 +14,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,6 +35,8 @@ class HealthRepository @Inject constructor(
     private val apiKey = com.wellsync.BuildConfig.API_KEY
 
     private val modelName = "gemini-2.5-flash-lite" // Updated to currently supported model
+    
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault())
 
     private fun getSystemInstruction(syncState: SyncState, additionalContext: String): String {
         val baseRole = when (syncState.promptType) {
@@ -42,6 +46,33 @@ class HealthRepository @Inject constructor(
             else -> "You are a health analysis expert." // Default
         }
         return "$baseRole $additionalContext Always respond in Japanese."
+    }
+    
+    private fun normalizeData(data: List<HealthDataRecord>): List<FormattedHealthRecord> {
+        val groupedData = data.groupBy { record ->
+            val dateStr = dateFormatter.format(Instant.ofEpochMilli(record.timestamp))
+            Pair(dateStr, record.type)
+        }
+
+        val normalized = mutableListOf<FormattedHealthRecord>()
+        for ((key, records) in groupedData) {
+            val (date, type) = key
+            if (records.isEmpty()) continue
+
+            val unit = records.first().unit
+            val value = when (type) {
+                "steps", "sleep_duration" -> records.sumOf { it.value }
+                "weight", "systolic_bp", "diastolic_bp" -> records.map { it.value }.average()
+                else -> records.map { it.value }.average()
+            }
+            
+            // Format double to max 2 decimal places to keep JSON clean
+            val formattedValue = Math.round(value * 100.0) / 100.0
+            
+            normalized.add(FormattedHealthRecord(type, formattedValue, unit, date))
+        }
+
+        return normalized.sortedBy { it.date }
     }
 
     suspend fun getAnalysis(
@@ -59,12 +90,13 @@ class HealthRepository @Inject constructor(
                 }
                 // Case 2: Enough historical data to justify a new cache
                 historicalData.isNotEmpty() -> {
-                    val historicalJson = Json.encodeToString(historicalData)
+                    val normalizedHistorical = normalizeData(historicalData)
+                    val historicalJson = Json.encodeToString(normalizedHistorical)
                     // A token is roughly 4 characters. Gemini requires minimum 4096 tokens for caching (~16,000 chars).
                     // If the payload is too small, skip the cache creation to save API calls and prevent Rate Limits.
                     if (historicalJson.length > 15000) {
                         try {
-                            createNewCache(historicalData, deltaData, syncState)
+                            createNewCache(normalizedHistorical, deltaData, syncState)
                         } catch (e: retrofit2.HttpException) {
                             if (e.code() == 400) {
                                 val errorBody = e.response()?.errorBody()?.string() ?: ""
@@ -100,13 +132,10 @@ class HealthRepository @Inject constructor(
     }
 
     private suspend fun useCache(cacheId: String, deltaData: List<HealthDataRecord>): String {
-        // Convert timestamps to human-readable strings for the AI
-        val formattedDelta = deltaData.map { 
-            FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
-        }
-        val deltaJson = Json.encodeToString(formattedDelta)
+        val normalizedDelta = normalizeData(deltaData)
+        val deltaJson = Json.encodeToString(normalizedDelta)
         val now = OffsetDateTime.now()
-        val prompt = "Current date and time: ${now}. Here is the latest health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information. Always respond in Japanese."
+        val prompt = "Current date and time: ${now}. Here is the latest aggregated health data since the last sync: $deltaJson. Please update your analysis based on the historical data you have cached and this new information. Always respond in Japanese."
         
         val request = GenerateContentRequest(
             contents = listOf(Content(role = "user", parts = listOf(Part(text = prompt)))),
@@ -129,16 +158,13 @@ class HealthRepository @Inject constructor(
     }
 
     private suspend fun createNewCache(
-        historicalData: List<HealthDataRecord>,
+        normalizedHistorical: List<FormattedHealthRecord>,
         deltaData: List<HealthDataRecord>,
         syncState: SyncState
     ): String {
-        val formattedHistorical = historicalData.map { 
-            FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
-        }
-        val historicalJson = Json.encodeToString(formattedHistorical)
+        val historicalJson = Json.encodeToString(normalizedHistorical)
         val now = OffsetDateTime.now()
-        val context = "Current date and time: ${now}. You have access to the user's historical health data (Weight, Steps, BP). Provide deep insights and trends."
+        val context = "Current date and time: ${now}. You have access to the user's historical aggregated health data (Weight, Steps, Sleep, BP) grouped by day. Provide deep insights and trends."
         val systemInstruction = getSystemInstruction(syncState, context)
         
         val cacheRequest = CachedContentRequest(
@@ -165,12 +191,10 @@ class HealthRepository @Inject constructor(
     }
 
     private suspend fun generateStandardAnalysis(data: List<HealthDataRecord>, syncState: SyncState): String {
-        val formattedData = data.map { 
-            FormattedHealthRecord(it.type, it.value, it.unit, Instant.ofEpochMilli(it.timestamp).atOffset(OffsetDateTime.now().offset).toString())
-        }
-        val dataJson = Json.encodeToString(formattedData)
+        val normalizedData = normalizeData(data)
+        val dataJson = Json.encodeToString(normalizedData)
         val now = OffsetDateTime.now()
-        val context = "Current date and time: ${now}. Provide insights based on this data: $dataJson."
+        val context = "Current date and time: ${now}. Provide insights based on this aggregated daily health data: $dataJson."
         val systemInstruction = getSystemInstruction(syncState, context)
         
         val request = GenerateContentRequest(
